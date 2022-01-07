@@ -29,6 +29,8 @@ class multiMapReadData{
 map< long long,vector<multiMapReadData> > multiMapReads;///index= Read index, value=contig wise mapping data of that read
 map<int,vector< long long> > readsInContig;///contigno index, value= read Index
 
+vector<int> readsPerPositionInGenome;
+
 int noContigs=0;
 int noReads=0;
 long int contigLength=0;
@@ -53,7 +55,10 @@ vector<int> contigCopyNumber;
 vector<vector<int> >ContigVsCopyVsProb;///row= a contig column = copy no. val=likelihood
 map< int, vector<double> >insertVsContigWeightedLen;///key=insert column=contig val=weighted len of a contig for the insertSize
 
-
+///segmentation
+vector<double> mean_window;
+vector<int> start_window;
+vector<double> std_dev_window;
 
 
 
@@ -124,6 +129,12 @@ vector<double>gcVSweight;///index=GC in integer form
 
 
 vector < vector<int> > overlappingReadsInContig;///index = contigNo,pos value = number of overlapping reads
+
+
+///Segmentation
+int seg_window_size=1000/*totalContigLength*0.0002*/;
+
+///
 
 
 long int findBucket(double gcVal){
@@ -1068,10 +1079,13 @@ double computeErrorProb(char *cigar, char *md, char *read, int strandNo)
 
 double computeLikelihoodForGC(char *file)
 {
-
+    cout<<"Computing Likelihood for GC"<<endl;
+    //cout<<"murad"<<endl;
     mapFile=fopen(file, "r");
+    //cout<<"murad "<<mapFile<<endl;
     char *line1= new char[MAX_REC_LEN];
     char *line2= new char[MAX_REC_LEN];
+    //cout<<"murad"<<endl;
 
     char *qname1,*qname2,preqname1[500],preqname2[500];
 
@@ -1096,6 +1110,7 @@ double computeLikelihoodForGC(char *file)
 
     preqname1[0]=preqname2[0]='*';
     preqname1[1]=preqname2[1]=0;
+    //cout<<"muradhaha"<<endl;
 
     ///edited from raihan vai
     char *contigField1, *contigField2;
@@ -1111,6 +1126,7 @@ double computeLikelihoodForGC(char *file)
 
     int it=0;
 
+
     while(fgets(line1, MAX_FILE_READ, mapFile)!=NULL)
     {
 
@@ -1121,9 +1137,12 @@ double computeLikelihoodForGC(char *file)
             break;
 
 
+        //joyanta
+        //cout<< "Line 1 \n" <<line1<< endl;
 
         qname1=strtok(line1,"\t");
         temp=strtok(NULL,"\t");
+        //cout<<qname1<<"read name "<<temp<<endl;
         flag=atoi(temp);
 
 
@@ -1132,7 +1151,10 @@ double computeLikelihoodForGC(char *file)
         ///changing for contigNo
         temp=strtok(NULL,"\t");
         contigField1=temp;
+        //cout<<"valo contig "<<temp<<endl;
         contigNo1=atoi(temp);
+        //cout<<"shalar contig "<<contigNo1<<endl;
+        if(contigNo1==-1){contigNo1=0;contigField1="0";}
 
 
         temp=strtok(NULL,"\t");
@@ -1148,7 +1170,8 @@ double computeLikelihoodForGC(char *file)
 
         insertSize1=atoi(temp);
 
-
+        //joyanta
+        //cout<< "qname1" << qname1 << "strandNo1" << strandNo1 << "contigField1" << contigField1 << "pos1" << pos1 << "cigar1" << cigar1 << "insertSize1" << insertSize1 <<endl;
         readString1=strtok(NULL,"\t");
 
 
@@ -1165,6 +1188,9 @@ double computeLikelihoodForGC(char *file)
 
 //second of the pair
 
+        //joyanta
+        //cout<< "Line 2 \n" << line2<< endl;
+
         qname2=strtok(line2,"\t");
         temp=strtok(NULL,"\t");
         flag=atoi(temp);
@@ -1176,6 +1202,7 @@ double computeLikelihoodForGC(char *file)
         temp=strtok(NULL,"\t");
         contigField2=temp;
         contigNo2=atoi(temp);
+        if(contigNo2==-1){contigNo2=0;contigField2="0";}
 
         temp=strtok(NULL,"\t");
         pos2=atoi(temp);
@@ -1191,9 +1218,13 @@ double computeLikelihoodForGC(char *file)
 
         readString2=strtok(NULL,"\t");
 
+        //cout<<"print"<<endl;
+        //joyanta
+        //cout<< " qname2 " << qname2 << " strandNo2 " << strandNo2 << " contigField1 " << contigField2 << " pos2 " << pos2 << " cigar2 " << cigar2 << " insertSize2 " << insertSize2 <<endl;
 
         while((temp=strtok(NULL,"\t\n"))!=NULL)
         {
+            //cout<<"print1"<<endl;
             if(temp[0]=='M' && temp[1]=='D')
             {
                 strcpy(md2,temp);
@@ -1206,16 +1237,26 @@ double computeLikelihoodForGC(char *file)
 
         int insertSize=max(insertSize1, insertSize2);
 
+        // //joyanta
+        // int countDown = 10;
+        // if (insertSize && countDown) {
+        //     printf("InsertSize is not Zero in GC bias calculation; insertSize %d \n", insertSize);
+        //     countDown--; }
+        // // } else printf("InsertSize is Zero: %d \n",insertSize);
+
 
         insertSizeProb=0;
 
         if(insertSize>=0 && insertSize<maxInsertSize)
         {
+            //cout<<"age"<<endl;
             insertSizeProb=insertLengthDist[insertSize];
+            //cout<<"pore"<<endl;
         }
 
         if(insertSizeProb==0)
         {
+
             insertSizeProb=1/(double)uniqueMappedReads;
         }
 
@@ -1228,8 +1269,13 @@ double computeLikelihoodForGC(char *file)
 
         long int totalEffectiveLength=getEffectiveLength(insertSize);
 
-        double prob=(1/(double)(totalEffectiveLength))*insertSizeProb*errorProb1*errorProb2;
+        //joyanta
+        //if (totalEffectiveLength) printf("totalEffectiveLength is not Zero in GC bias calculation; totalEffectiveLength %d \n", totalEffectiveLength);
 
+
+        //cout<<"print3"<<endl;
+        double prob=(1/(double)(totalEffectiveLength))*insertSizeProb*errorProb1*errorProb2;
+        //cout<<"print4"<<endl;
 
 
 ///changes
@@ -1247,31 +1293,37 @@ double computeLikelihoodForGC(char *file)
             sum+=prob;
 
             ///added from raihan vai
+            //cout<<"age1"<<endl;
             createInfo(insertSize,qname1, errorProb1, pos1, contigField1, readString1, multiMapProb1);
 			createInfo(insertSize,qname2, errorProb2, pos2, contigField2, readString2, multiMapProb2);
+			//cout<<"pore1"<<endl;
 			///done
 
         }
         else if(strcmp("*",preqname1)!=0 && strcmp("*",preqname2)!=0)
         {
             ///edited from raihan vai
+            //cout<<"age2"<<endl;
             writeInfoToFile(multiMapProb1, cigarMap1, readMap1);
 			writeInfoToFile(multiMapProb2, cigarMap2, readMap2);
-
+            //cout<<"is it?"<<endl;
 			multiMapProb1.clear();
 			multiMapProb2.clear();
+			//cout<<"pore2"<<endl;
 
 
             createInfo(insertSize,qname1, errorProb1, pos1, contigField1, readString1, multiMapProb1);
 			createInfo(insertSize,qname2, errorProb2, pos2, contigField2, readString2, multiMapProb2);
-
+            //cout<<"pore2-3"<<endl;
 			///done
         }
         else
         {
             ///edited from raihan vai
+            //cout<<"age3"<<endl;
             createInfo(insertSize,qname1, errorProb1, pos1, contigField1, readString1, multiMapProb1);
 			createInfo(insertSize,qname2, errorProb2, pos2, contigField2, readString2, multiMapProb2);
+			//cout<<"pore3"<<endl;
 			///done
 
         }
@@ -1279,9 +1331,10 @@ double computeLikelihoodForGC(char *file)
         strcpy(preqname1,qname1);
         strcpy(preqname2,qname2);
         it++;
-
+        //cout<<"print5"<<endl;
 
     }
+    //cout<<"murad"<<endl;
 
     fclose(mapFile);
 
@@ -1343,6 +1396,7 @@ double computeLikelihood(char *file)
     readsInContig.clear();
     multiMapReads.clear();
     //uniqueMappedReadCount.clear();
+    cout<<"Inside faulty likelihood calculation"<<endl;
 
     while(fgets(line1, MAX_FILE_READ, mapFile)!=NULL)
     {
@@ -1362,10 +1416,12 @@ double computeLikelihood(char *file)
 
         strandNo1=(flag&16)>>4;
 
-        ///changing for contigNo
+
+        //changing for contigNo
         temp=strtok(NULL,"\t");
         contigField1=temp;
         contigNo1=atoi(temp);
+        if(contigNo1==-1){contigNo1=0;contigField1="0";}
 
 
         temp=strtok(NULL,"\t");
@@ -1420,7 +1476,9 @@ double computeLikelihood(char *file)
         temp=strtok(NULL,"\t");
         contigField2=temp;
         contigNo2=atoi(temp);
-
+        if(contigNo2==-1){contigNo2=0;contigField2="0";}
+        
+        
         temp=strtok(NULL,"\t");
         pos2=atoi(temp);
 
@@ -1804,14 +1862,23 @@ void calculateGcVsWeight()
     inFile >> curr_contig >> pos >> prob >> readLen >> insertSize;
     prev_contig = curr_contig;
     priority_queue<long int, vector<long int>, greater<long int> > pq;
+
+    //joyanta
+    //cout<<"Entering gcVsweight calculation While 1 loop"<<endl;
+    //cout<< "CUR_CONTIG "<< curr_contig <<"Cur Contig POS " <<  pos << " PROB " << prob << " READLEN " << readLen << "InsertSize" << insertSize << endl;
+
+    
     while(1){
         long int pushVal=min(pos+readLen-1,contigLengths[curr_contig]-1);
+        //cout<< "J PushVal " << pushVal << "CurPos "<< curr_pos << "POS "<< pos << "CurContig "<< curr_contig << endl;
         pq.push(pushVal);
 
         while(curr_pos<pos){///we haven't reached the file given read starting pos
             if(pq.top()>=curr_pos){
                 if(pq.empty()==false){
                     mp[curr_contig].push_back(count);
+                    //cout<<"push3"<<endl;
+                    readsPerPositionInGenome.push_back(count);
                 }
             }
             else{
@@ -1820,6 +1887,8 @@ void calculateGcVsWeight()
                     count--;
                 }
                 mp[curr_contig].push_back(count);
+                //cout<<"push4 "<<curr_contig<<endl;
+                readsPerPositionInGenome.push_back(count);
             }
             curr_pos++;
         }
@@ -1832,10 +1901,15 @@ void calculateGcVsWeight()
         if(prev_pos==pos) ///checking if the previous read of the file was also from the same pos
         {
             mp[curr_contig].pop_back();
+            //cout<<"pop1"<<endl;
+            readsPerPositionInGenome.pop_back();
         }
         mp[curr_contig].push_back(count);
+        readsPerPositionInGenome.push_back(count);
 
         if(inFile >> curr_contig >> pos >> prob >> readLen >> insertSize){
+            cout<< "In unknown meaning conditional"<<endl;
+            cout<<  "CurContig "<< curr_contig << " POS "<< pos << " Prob " << prob << " ReadLen " << readLen << " InsertSize "<< insertSize << endl;
             prev_pos=curr_pos;
             if(pos>prev_pos && curr_contig==prev_contig)///eitar mane ki???
             {
@@ -1845,11 +1919,17 @@ void calculateGcVsWeight()
 
                 ///filling the prev contig
                 curr_pos++;
+                //cout<< "Not crashed in line 1899"<<endl;
                 int contigSize=contigLengths[prev_contig];
+                //cout<< "ContigSize "<< contigSize <<endl;
                 while(curr_pos<contigSize){
                     if(pq.top()>=curr_pos){
                         if(pq.empty()==false){
+                            //cout<< "Not crashed in line 1904"<<endl;
                             mp[prev_contig].push_back(count);
+                            //cout<<"push5"<<endl;
+                            //cout<< "Not crashed in line 1907"<<endl;
+                            readsPerPositionInGenome.push_back(count);
                         }
                     }
                     else{
@@ -1858,10 +1938,15 @@ void calculateGcVsWeight()
                             pq.pop();
                             count--;
                         }
+                        //cout<< "Not crashed in line 1917"<<endl;
                         mp[prev_contig].push_back(count);
+                        //cout<<"push2"<<endl;
+                        //cout<< "Not crashed in line 1920"<<endl;
+                        readsPerPositionInGenome.push_back(count);
                     }
                     curr_pos++;
                 }
+                //cout<< "Not crashed in line 1925"<<endl;
 
                 count=0;
                 curr_pos=0;
@@ -1874,6 +1959,7 @@ void calculateGcVsWeight()
         }
         else
         {
+            cout<< "In filling the prev contig conditional"<<endl;
             ///filling the prev contig
                 curr_pos++;
                 int contigSize=contigLengths[prev_contig];
@@ -1881,6 +1967,8 @@ void calculateGcVsWeight()
                     if(pq.top()>=curr_pos){
                             if(pq.empty()==false){
                             mp[prev_contig].push_back(count);
+                            //cout<<"push1"<<endl;
+                            readsPerPositionInGenome.push_back(count);
                         }
                     }
                     else{
@@ -1889,12 +1977,19 @@ void calculateGcVsWeight()
                             count--;
                         }
                         mp[prev_contig].push_back(count);
+                        //cout<<"push6"<<endl;
+                        readsPerPositionInGenome.push_back(count);
                     }
                     curr_pos++;
                 }
                 break;
         }
     }
+    //joyanta
+    //cout<< "While Loop Exit"<<endl;
+
+    cout<<"Initially "<<mp.size()<<endl;
+    cout<<mp[0].size()<<endl;
 
     inFile.close();
     /*for(int i=0; i<3;i++){
@@ -1906,7 +2001,7 @@ void calculateGcVsWeight()
 
     gcVSweight.clear();
     vector<int> counter;
-
+    //cout<<"halal"<<endl;
     for(int i=0; i<100; i++)
     {
         gcVSweight.push_back(0.0);
@@ -1920,7 +2015,13 @@ void calculateGcVsWeight()
         for(int j=0; j<contigSize; j++)
         {
             int gcValue=int(100.0*gcContentArr[i][j]);
+            //cout<<"hala "<<gcValue<<endl;
+            //cout<<mp.size()<<endl;
+            //cout<<mp[i].size()<<endl;
+            //cout<<mp[i][j]<<endl;
+            //cout<<"a"<<i<<" "<<j<<endl;
             gcVSweight[gcValue]+=mp[i][j];
+            //cout<<"b"<<endl;
             if(mp[i][j]!=0)
                 counter[gcValue]++;
         }
@@ -1928,13 +2029,16 @@ void calculateGcVsWeight()
 
     for(int i=0;i<100; i++)
     {
+        //cout<<"c"<<endl;
         if(counter[i]!=0)
         {
             //gcVSweight[i]=gcVSweight[i]/counter[i];
         }
+        //cout<<"d"<<endl;
         gcVSweight[i]=1.0;
         //gcVSweight[i]+=1.0;
         //cout<<gcVSweight[i]<<endl;
+        //cout<<"e"<<endl;
     }
 
 
@@ -1984,6 +2088,137 @@ void freeMemory(){
 }
 
 ///change done
+
+void findmean(){
+    long int i=0;
+    double window_mean=0;
+
+    vector<int>::iterator it=readsPerPositionInGenome.begin();
+    for(;it!=readsPerPositionInGenome.end();it+=seg_window_size){
+
+        if(readsPerPositionInGenome.end()-it==0)
+            break;
+        if(readsPerPositionInGenome.end()-it<seg_window_size ){
+            window_mean = accumulate(it,readsPerPositionInGenome.end(),0.0)/(readsPerPositionInGenome.end()-it);
+            start_window.push_back(i*seg_window_size);
+            mean_window.push_back(window_mean);
+            break;
+        }
+
+        else{
+            window_mean = accumulate(it,it+seg_window_size,0.0)/seg_window_size;
+            start_window.push_back(i*seg_window_size);
+            mean_window.push_back(window_mean);
+        }
+        i++;
+    }
+
+}
+
+void find_std_dev(){
+    long int sz= readsPerPositionInGenome.size();
+    long int mean_idx;
+    double std_now=0;
+    for(long int i=0;i<=sz;i++){
+        if(i%seg_window_size==0 || i==sz){
+            if(i!=0){///check if it's the first position
+                if(i==sz)///for the last portion
+                    std_now/=(sz-start_window[start_window.size()-1]);///window size for the last remainder contig
+                else///not the last portion.So general calculation
+                    std_now/=seg_window_size;
+                std_dev_window.push_back(sqrt(std_now));
+            }
+            if(i==sz)break;
+            std_now=0;
+            mean_idx=i/seg_window_size;
+
+        }
+        std_now+=(mean_window[mean_idx]-readsPerPositionInGenome[i])*(mean_window[mean_idx]-readsPerPositionInGenome[i]);
+    }
+
+}
+
+int segmentation(){
+    double threshold=100;
+
+    cout<<"find mean started"<<endl;
+
+    findmean();///populating mean_window and start_window vectors
+    find_std_dev();
+    ofstream murad;
+    murad.open("mean_std.txt");
+    for(int i=0; i<mean_window.size(); i++)
+    {
+        murad<<i<<"  "<<mean_window[i]<< "  "<<std_dev_window[i]<<endl;
+    }
+    murad.close();
+
+
+    cout<<"find mean finished"<<endl;
+
+    long int i=0;
+    double std_factor=3;
+
+    while(i<start_window.size()-1){
+        if(((mean_window[i]-std_factor*std_dev_window[i]<=mean_window[i+1]) &&
+        (mean_window[i]+std_factor*std_dev_window[i]>=mean_window[i+1]))
+          && ((mean_window[i+1]-std_factor*std_dev_window[i+1]<=mean_window[i]) &&
+           (mean_window[i+1]+std_factor*std_dev_window[i+1]>=mean_window[i])) ){
+
+            ///update mean of mean_window[i]
+            long int window_size1,window_size2;
+            double mean1=mean_window[i],mean2=mean_window[i+1];
+            window_size1 = start_window[i+1]-start_window[i];
+            if((i+2)==start_window.size())///(i+1)th segment is the last segment.There is no (i+2)th segment
+            window_size2 = totalContigLength - start_window[i+1];
+            else window_size2 = start_window[i+2]-start_window[i+1];
+            mean_window[i]= (mean_window[i]*window_size1+mean_window[i+1]*window_size2)/(window_size1+window_size2);
+            ///update mean of mean_window[i] done
+
+            ///update std_dev of std_dev_window[i]
+            ///std_new=n1*(S1*S1+d1*d1)+n2*(S2*S2+d2*d2)/(n1+n2)
+
+            double t1=window_size1*(std_dev_window[i]*std_dev_window[i]+(mean1-mean_window[i])*(mean1-mean_window[i]));
+            double t2=window_size2*(std_dev_window[i+1]*std_dev_window[i+1]+(mean2-mean_window[i])*(mean2-mean_window[i]));
+            std_dev_window[i]=(t1+t2)/(window_size1+window_size2);
+
+            ///update std_dev of std_dev_window[i]
+
+            mean_window.erase(mean_window.begin()+(i+1));
+            std_dev_window.erase(std_dev_window.begin()+(i+1));
+            start_window.erase(start_window.begin()+(i+1));
+        }
+        else{
+            i++;
+        }
+    }
+    if(start_window.size()>1 && (start_window[start_window.size()-1]-start_window[start_window.size()-2])<seg_window_size)
+        start_window.pop_back();
+    for(int i=0;i<start_window.size();i++)cout<<start_window[i]<<" ";
+    cout<<"Total Segments "<<start_window.size()<<endl;
+
+    /*ofstream genomeOut;
+    genomeOut.open("genomeNew.fasta");
+    i=0;
+    int j=0;
+    genomeOut<<">";
+    genomeOut<<j++<<endl;
+
+    while(i<contigLengths[0])
+    {
+        if(start_window.size()>j){
+            if(start_window[j]==i)
+            {
+                genomeOut<<endl;
+                genomeOut<<">";
+                genomeOut<<j++<<endl;
+            }
+        }
+        genomeOut<<contigs[0][i++];
+    }
+    genomeOut.close();*/
+
+}
 
 
 int main(int argc, char *argv[])
@@ -2168,10 +2403,18 @@ int main(int argc, char *argv[])
 
     ///changes
 
+    cout<<"Contigs are read"<<endl;
+
     computeProbabilitesForGC();
+    //cout<<"habajaba"<<endl;
+    //cout<<"abc1"<<endl;
+    //cout<<"Compute probabilites for gc"<<endl;
+    //cout<<"Compute probabilites for gc"<<endl;
+    //cout<<"abc1"<<endl;
 
 
     double abcd=computeLikelihoodForGC(mapFileName);
+    cout<<"Compute Likelihood for gc"<<endl;
 
 
     ///edited from raihan vai
@@ -2182,7 +2425,6 @@ int main(int argc, char *argv[])
 	cout<<"before gcVsweight calculation"<<endl;
 
 	calculateGcVsWeight();
-
 
 	///done
 
@@ -2197,55 +2439,57 @@ int main(int argc, char *argv[])
 
     cout<<"After likelihood calculation"<<endl;
 
+    ofstream output_file("readsInPerPositionGenome.txt");
+    ostream_iterator<int> output_iterator(output_file, "\n");
+    copy(readsPerPositionInGenome.begin(), readsPerPositionInGenome.end(), output_iterator);
+
     freeMemory();
+    cout<<"After free memory"<<endl;
 
-    double value=val1,val2=0.0;
+    //findmean();
+    ///segmentation();
 
-//	cout<<"after val 1"<<endl;
+    ///write to fasta
 
-    /*val2=computeLikelihood("unmappedOut.sam");
+    /*vector<long int> contigLengths1;
+    vector<char*> contigs1;
 
-//	cout<<"after val 2"<<endl;
-
-
-    if(unCount==0)
+    for(int i=0; i<start_window.size(); i++)
     {
-        value=val1;
-    }
-    else if(unCount>toAlign)
-    {
-        val2=val2/toAlign*unCount;
-        value=val1+val2;
-    }
-    else
-    {
-        value=val1+val2;
-    }*/
-
-    ///changed
-    likelihoodOriginal = value;
-
-    ///done
-
-    cout<<value<<endl;
-
-    fprintf(outFile,"%d\t%f\t%f\t%f\t%ld\t%ld\n",noContigs,value,val1,val2,totalCount,unCount);
-
-    fclose(outFile);
-    ///copy number detection
-    computeCNVdependent();
-    //ofstream cnvOut;
-    //cnvOut.open("ContigVsCopyNo.txt");
-    for(int i=0;i<ContigVsCopyVsProb.size();i++){
-
-        for(int j=0;j<ContigVsCopyVsProb[i].size();j++){
-            //cnvOut<<"Contig Number: "<<i<<" Copy Number "<<j<<" Likelihood: "<<ContigVsCopyVsProb[i][j]<<endl;
-            cout<<"Contig Number: "<<i<<" Copy Number "<<j<<" Likelihood: "<<ContigVsCopyVsProb[i][j]<<endl;
+        if(i<start_window.size()-1)
+        {
+            contigLengths1.push_back(start_window[i+1]-start_window[i]);
         }
-        //cnvOut<<endl<<endl;
+        else
+        {
+            contigLengths1.push_back(totalContigLength-start_window[i]);
+        }
+        char* c=new char[contigLengths1[i]+1];
+        c[0]='\0';
+        contigs1.push_back(c);
     }
-    //cnvOut.close();
 
+    long int contig1pos=0, j;
+
+    for(int i=0; i<start_window.size(); i++)
+    {
+        for(j=0; j<contigLengths1[i]; j++)
+        {
+            contigs1[i][j]=contigs[0][contig1pos++];
+        }
+        contigs1[i][j]='\0';
+    }
+
+    ofstream genomeOut;
+    genomeOut.open("genomeNew.fasta");
+
+    for(int i=0; i<start_window.size(); i++)
+    {
+        genomeOut<<">"<<i<<endl;
+        genomeOut<<contigs1[i]<<endl;
+    }
+
+    genomeOut.close();*/
 
     return 0;
 }

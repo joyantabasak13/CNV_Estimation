@@ -1,14 +1,11 @@
-#_______________________________________________________________________________
-#_______________________________________________________________________________
-
 #Working with my CNV data
+setwd('/home/joyanta/Documents/Projects/CNV/test/Group1/simul1')
 library(DNAcopy)
-setwd('/home/joyanta/Desktop/copy-number-variation/Code')
 #Load DNA Pos Coverage data
-path_ref<- file.path("/home/joyanta/Desktop/copy-number-variation/Code","readsPerPosition_ref.txt")
+path_ref<- file.path("/home/joyanta/Documents/Projects/CNV/test/Group1/simul1","readsInPerPositionGenome_ref.txt")
 path_ref
 
-path_test<- file.path("/home/joyanta/Desktop/copy-number-variation/Code","readsPerPosition_test.txt")
+path_test<- file.path("/home/joyanta/Documents/Projects/CNV/test/Group1/simul1","readsInPerPositionGenome_test.txt")
 path_test
 
 ref<- read.table(path_ref, 
@@ -60,12 +57,13 @@ length(chrom)
 
 #DNAcopy API
 my_seg_input<- CNA(my_data_vec, chrom, maplocation, data.type="logratio")
-class(my_seg_input)
+#print("Checking Input Class")
+#class(my_seg_input)
 
 smooth.my_seg_input<- smooth.CNA(my_seg_input)
 length((smooth.my_seg_input[,1]))
 
-?segment
+#?segment
 start.time<-Sys.time()
 my_seg_output<-segment(smooth.my_seg_input,alpha= 0.0005, undo.splits="sdundo", 
                        undo.SD=3, verbose=1)
@@ -78,8 +76,9 @@ duration
 
 my_seg_output2<- my_seg_output
 
-class(my_seg_output)
-class(my_seg_output$output)
+#print("Checking Output Class")
+#class(my_seg_output)
+#class(my_seg_output$output)
 
 length(my_seg_output2$output[,3])
 my_seg_output2$output[,3:5]<-my_seg_output2$output[,3:5]*windowsize
@@ -88,10 +87,11 @@ my_seg_output2$output[,4][length(my_seg_output2$output[,4])]<-length(test) #Corr
 temp<-my_seg_output2$output[,4][length(my_seg_output2$output[,4])]-my_seg_output2$output[,3][length(my_seg_output2$output[,3])]
 temp
 my_seg_output2$output[,5][length(my_seg_output2$output[,5])]<-temp #Corrected Last region length
-?write.table
+#?write.table
 
 ####### Merge small regions to neighbour ############
-cutoff = 1000
+print("Merging small regions")
+cutoff = 500
 last_i = length(my_seg_output2$output[,5])
 print(last_i)
 rows_to_remove <- vector("list",last_i)
@@ -121,7 +121,8 @@ print(nrow(my_seg_output2$output))
 
 
 #######Save file ###########
-write.csv(my_seg_output2$output, file="/home/joyanta/Desktop/copy-number-variation/Code/segmented_result_LR_Alpha=0.0005.csv", row.names = FALSE)
+print("Writing")
+write.csv(my_seg_output2$output, file="/home/joyanta/Documents/Projects/CNV/test/Group1/simul1/segmented_result_Win_50_RCutoff_500_LR_Alpha=0.0005.csv", row.names = FALSE)
 
-plot(my_seg_output, plot.type="w")
+#plot(my_seg_output, plot.type="w")
 print("DONE")
