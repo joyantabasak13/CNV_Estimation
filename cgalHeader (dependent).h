@@ -120,6 +120,8 @@ void writeInfoToFile(vector<info> &multiMap, map<long int, string> &cigar, map<l
         ///basay change done(mim)
         if(r<=s1)
         {
+            //joyanta
+            if(temp1.insertSize > 0) printf("InsertSIze is not zero; InsertSize %d",temp1.insertSize);
             if(temp1.insertSize>=MAX_INSERTSIZE_CNV-1){
                 insertLenCount[MAX_INSERTSIZE_CNV-1]++;
             }

@@ -1291,7 +1291,6 @@ double computeLikelihoodForGC(char *file)
         if(strcmp(qname1,preqname1)==0 && strcmp(qname2,preqname2)==0)
         {
             sum+=prob;
-
             ///added from raihan vai
             //cout<<"age1"<<endl;
             createInfo(insertSize,qname1, errorProb1, pos1, contigField1, readString1, multiMapProb1);
@@ -1863,14 +1862,8 @@ void calculateGcVsWeight()
     prev_contig = curr_contig;
     priority_queue<long int, vector<long int>, greater<long int> > pq;
 
-    //joyanta
-    //cout<<"Entering gcVsweight calculation While 1 loop"<<endl;
-    //cout<< "CUR_CONTIG "<< curr_contig <<"Cur Contig POS " <<  pos << " PROB " << prob << " READLEN " << readLen << "InsertSize" << insertSize << endl;
-
-    
     while(1){
         long int pushVal=min(pos+readLen-1,contigLengths[curr_contig]-1);
-        //cout<< "J PushVal " << pushVal << "CurPos "<< curr_pos << "POS "<< pos << "CurContig "<< curr_contig << endl;
         pq.push(pushVal);
 
         while(curr_pos<pos){///we haven't reached the file given read starting pos
